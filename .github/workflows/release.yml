@@ -1,0 +1,118 @@
+name: Release
+
+# Releases are cut by pushing a tag like v0.2.0. Publishing to PyPI uses Trusted
+# Publishing (OIDC), so there is no long-lived PyPI token anywhere. Configure it at
+# https://pypi.org/manage/account/publishing/ (workflow: release.yml, environment: pypi).
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build distributions and SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+          # No dependency caching in the release path (cache-poisoning hardening).
+      - name: Check the tag matches the package version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          version = re.search(r'__version__ = "([^"]+)"', open("src/cert_key_auditor/__init__.py").read()).group(1)
+          tag = os.environ["TAG"].removeprefix("v")
+          if version != tag:
+              sys.exit(f"tag v{tag} does not match package version {version}")
+          print("version", version)
+          PY
+      - name: Build and verify
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check --strict dist/*
+      - name: Generate a CycloneDX SBOM of the installed package and its runtime dependencies
+        run: |
+          # Two environments, so the SBOM lists the package's dependencies and not the
+          # SBOM tool's own.
+          python -m venv /tmp/target-env
+          /tmp/target-env/bin/pip install dist/*.whl
+          python -m venv /tmp/tool-env
+          /tmp/tool-env/bin/pip install "cyclonedx-bom>=4"
+          /tmp/tool-env/bin/cyclonedx-py environment --of JSON \
+            -o dist/cert-key-auditor.cdx.json /tmp/target-env/bin/python
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  provenance:
+    name: Attest build provenance
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # sign the attestation with the workflow's OIDC identity
+      attestations: write # store the build-provenance attestation
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+
+  publish-pypi:
+    name: Publish to PyPI (Trusted Publishing)
+    needs: [build, provenance]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi # protect with required reviewers in the repository settings
+      url: https://pypi.org/project/cert-key-auditor/
+    permissions:
+      id-token: write # PyPI Trusted Publishing (OIDC); no stored token
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - name: Keep only the distributions PyPI accepts
+        run: rm -f dist/*.cdx.json
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+
+  github-release:
+    name: GitHub release
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write # create the GitHub release and upload assets
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+        run: gh release create "$TAG" dist/* --repo "$REPO" --title "$TAG" --generate-notes --verify-tag

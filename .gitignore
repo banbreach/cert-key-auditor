@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.eggs/
+# Tooling caches and reports
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+codeaudit-report*.html
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+# Secrets and local config (never commit tokens or key material)
+.env
+.env.*
+*.key
+*.p12
+*.pfx
+cert-audit.local.toml

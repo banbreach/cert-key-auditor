@@ -1,0 +1,124 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cert-key-auditor"
+dynamic = ["version"]
+description = "Audit X.509 certificates: weak EC/RSA keys, validity-period policy, CRL availability. Sources: Censys, local files, PDFs."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Project Maintainers" }]
+keywords = ["x509", "tls", "certificates", "cryptography", "security", "censys", "crl", "pdf"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security :: Cryptography",
+    "Typing :: Typed",
+]
+dependencies = [
+    "requests>=2.32.4",
+    "cryptography>=44.0.1",
+]
+
+[project.optional-dependencies]
+pdf = ["pypdf>=5.1.0"]
+roca = ["roca-detect>=1.2.0"]
+test = ["pytest>=8.0", "pytest-cov>=5.0", "responses>=0.25", "pypdf>=5.1.0", "roca-detect>=1.2.0"]
+dev = [
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "types-requests",
+    "pre-commit>=4.0",
+    "build>=1.2",
+    "twine>=6.0",
+    "pip-audit>=2.7",
+    "bandit>=1.8",
+]
+all = ["cert-key-auditor[pdf,roca]"]
+
+[project.urls]
+Documentation = "https://github.com/banbreach/cert-key-auditor#readme"
+Issues = "https://github.com/banbreach/cert-key-auditor/issues"
+Source = "https://github.com/banbreach/cert-key-auditor"
+Changelog = "https://github.com/banbreach/cert-key-auditor/blob/main/CHANGELOG.md"
+
+[project.scripts]
+cert-audit = "cert_key_auditor.cli:main"
+
+[tool.hatch.version]
+path = "src/cert_key_auditor/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cert_key_auditor"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/tests",
+    "/README.md",
+    "/LICENSE",
+    "/SECURITY.md",
+    "/CONTRIBUTING.md",
+    "/CHANGELOG.md",
+    "/pyproject.toml",
+]
+
+# ---------------------------------------------------------------- tooling ---
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+src = ["src", "tests"]
+extend-exclude = ["build", "dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S", "SIM", "C4", "PL", "RUF"]
+ignore = [
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004",
+    "E501",    # long lines are handled by the formatter where possible
+    "S101",    # assert is used in tests and for internal invariants
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "PLC0415", "B018", "PLR0917"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["cert_key_auditor", "helpers"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+files = ["src/cert_key_auditor"]
+
+[[tool.mypy.overrides]]
+module = ["roca.*", "pypdf.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.coverage.run]
+source = ["cert_key_auditor"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.bandit]
+exclude_dirs = ["tests"]

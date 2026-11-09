@@ -1,0 +1,39 @@
+name: Bug report
+description: Something does not work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste tokens, private keys or sensitive certificates.** Report security
+        vulnerabilities privately - see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: cert-key-auditor version (`cert-audit --version`)
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version and OS
+    validations:
+      required: true
+  - type: textarea
+    id: command
+    attributes:
+      label: Command run (redact tokens)
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened, and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Output of the failing run with `-vv` (redacted)
+      render: text

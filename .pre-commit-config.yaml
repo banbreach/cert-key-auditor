@@ -1,0 +1,102 @@
+# Install:   pip install pre-commit && pre-commit install --install-hooks \
+#                                     && pre-commit install --hook-type pre-push
+# Run all:   pre-commit run --all-files --hook-stage pre-push
+# Update:    pre-commit autoupdate --freeze   (then review the diff; consider pre-commit.ci)
+#
+# Revisions below were checked against upstream release tags. Prefer pinning to
+# full commit SHAs (`autoupdate --freeze`) once the repository is public.
+minimum_pre_commit_version: "4.0.0"
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+repos:
+  # ---------------------------------------------------------------- hygiene
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=512"]
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: detect-private-key # test fixtures are generated at runtime, never committed
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: trailing-whitespace
+
+  # ------------------------------------------------------- lint / format / types
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.3
+    hooks:
+      - id: ruff-check
+        args: ["--fix", "--exit-non-zero-on-fix"]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.4.1
+    hooks:
+      - id: mypy
+        files: ^src/
+        args: ["--config-file=pyproject.toml"]
+        additional_dependencies:
+          - "types-requests"
+          - "cryptography>=44.0.1"
+          - "requests>=2.32.4"
+          - "pypdf>=5.1.0"
+
+  # ------------------------------------------------------------ security (SAST)
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.9.4
+    hooks:
+      - id: bandit
+        args: ["-c", "pyproject.toml"]
+        additional_dependencies: ["bandit[toml]"]
+        files: ^src/
+
+  # Python Code Audit (https://github.com/nocomplexity/codeaudit): static security
+  # scan. `cimode` exits non-zero when it reports a weakness. Intentional patterns
+  # are annotated in code with `# nosec - <reason>` (honoured by default).
+  # NOTE: codeaudit is GPL-3.0-or-later. It runs only as an external developer tool
+  # here and is not a dependency of this MIT-licensed package.
+  - repo: local
+    hooks:
+      - id: codeaudit
+        name: codeaudit (Python Code Audit SAST)
+        entry: codeaudit cimode src/cert_key_auditor
+        language: python
+        additional_dependencies: ["codeaudit==1.9.3"]
+        pass_filenames: false
+        files: ^src/.*\.py$
+
+  # ------------------------------------------------------ secrets / supply chain
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  # pip-audit needs network access to vulnerability databases, so it runs on
+  # pre-push (and in CI) rather than on every commit.
+  - repo: local
+    hooks:
+      - id: pip-audit
+        name: pip-audit (dependency vulnerabilities)
+        entry: pip-audit --strict --progress-spinner off .
+        language: python
+        additional_dependencies: ["pip-audit>=2.7"]
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+
+  # ------------------------------------------------------------ CI workflow lint
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.31.1
+    hooks:
+      - id: zizmor
+        args: ["--min-severity=medium"]

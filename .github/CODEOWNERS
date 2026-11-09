@@ -1,0 +1,5 @@
+# Replace with real owners/teams. Require code-owner review in branch protection.
+*                       @REPLACE-OWNER
+/.github/               @REPLACE-OWNER
+/src/cert_key_auditor/crl.py   @REPLACE-OWNER
+/src/cert_key_auditor/pdf.py   @REPLACE-OWNER
